@@ -5,15 +5,37 @@
     <meta content="yes" name="apple-touch-fullscreen">
     <meta content="black" name="apple-mobile-web-app-status-bar-style">
     <meta content="320" name="MobileOptimized">
-    <title>动画加载器与iframe嵌入</title>
+    <title>安全入口跳转中</title>
     <style>
+        /* 基础样式重置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background-color: #f5f5f5;
+            min-height: 100vh;
+        }
+        
+        .loading-container {
+            text-align: center;
+            padding-top: 40vh;
+        }
+        
+        .loading-title {
+            color: #333;
+            font-family: "Microsoft YaHei", sans-serif;
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        
         .container {
             width: 100px;
             height: 100px;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            position: relative;
+            margin: 0 auto;
             animation: rotate-move 2s ease-in-out infinite;
         }
 
@@ -69,63 +91,126 @@
         }
 
         @keyframes rotate-move {
-            55% { transform: translate(-50%, -50%) rotate(0deg) }
-            80% { transform: translate(-50%, -50%) rotate(360deg) }
-            100% { transform: translate(-50%, -50%) rotate(360deg) }
+            55% { transform: rotate(0deg) }
+            80% { transform: rotate(360deg) }
+            100% { transform: rotate(360deg) }
         }
 
         .content {
             height: 100%;
             width: 100%;
             position: fixed;
-            left: -2px;
-            top: -2px;
+            left: 0;
+            top: 0;
             border: none;
+            display: none;
+        }
+        
+        .error-message {
+            color: #e74c3c;
+            font-family: "Microsoft YaHei", sans-serif;
+            text-align: center;
+            margin-top: 40vh;
+            padding: 0 20px;
+            display: none;
+        }
+        
+        .redirect-countdown {
+            color: #666;
+            font-family: "Microsoft YaHei", sans-serif;
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="dot dot-1"></div>
-        <div class="dot dot-2"></div>
-        <div class="dot dot-3"></div>
+    <div class="loading-container">
+        <div class="loading-title">安全检测中，请稍候...</div>
+        <div class="container">
+            <div class="dot dot-1"></div>
+            <div class="dot dot-2"></div>
+            <div class="dot dot-3"></div>
+        </div>
+        <div class="redirect-countdown">将在 <span id="countdown">3</span> 秒后自动跳转</div>
     </div>
+    
+    <div class="error-message" id="errorMessage"></div>
+    <iframe class="content" id="targetFrame"></iframe>
 
     <script>
-        // 解析URL参数并处理iframe加载
-        var urlParams = new URLSearchParams(window.location.search);
-        var encodedParam = urlParams.get('c');
-        var trueurl = encodedParam ? atob(encodedParam) : null;
+        // 增强的解密函数，增加简单混淆
+        function decodeUrl(encoded) {
+            try {
+                // 简单的字符替换混淆
+                const混淆后 = encoded.replace(/x/g, '+').replace(/y/g, '/').replace(/z/g, '=');
+                return atob(混淆后);
+            } catch (e) {
+                console.error('URL解码失败:', e);
+                return null;
+            }
+        }
         
-        if (trueurl && trueurl.includes("http")) {
-            // 1.5秒后隐藏加载动画
+        // 验证URL是否合法
+        function isValidUrl(url) {
+            try {
+                new URL(url);
+                return url.startsWith('http');
+            } catch (e) {
+                return false;
+            }
+        }
+        
+        // 显示错误信息
+        function showError(message) {
+            document.querySelector('.loading-container').style.display = 'none';
+            const errorEl = document.getElementById('errorMessage');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+        
+        // 解析URL参数并处理iframe加载
+        const urlParams = new URLSearchParams(window.location.search);
+        const encodedParam = urlParams.get('c');
+        let trueurl = encodedParam ? decodeUrl(encodedParam) : null;
+        
+        // 倒计时功能
+        let countdown = 3;
+        const countdownEl = document.getElementById('countdown');
+        const countdownInterval = setInterval(() => {
+            countdown--;
+            countdownEl.textContent = countdown;
+            if (countdown <= 0) {
+                clearInterval(countdownInterval);
+            }
+        }, 1000);
+        
+        if (trueurl && isValidUrl(trueurl)) {
+            // 3秒后隐藏加载动画并显示iframe
             setTimeout(function() {
-                document.querySelector('.container').style.display = "none";
-            }, 1500);
-            
-            // 创建并插入iframe
-            var iframe = document.createElement('iframe');
-            iframe.className = 'content';
-            iframe.src = trueurl;
-            iframe.onload = function() {
-                bindMouseWheel(this);
-            };
-            document.body.appendChild(iframe);
-            
-            console.log('加载URL:', trueurl);
+                document.querySelector('.loading-container').style.display = "none";
+                const iframe = document.getElementById('targetFrame');
+                iframe.src = trueurl;
+                iframe.style.display = "block";
+                console.log('加载URL:', trueurl);
+            }, 3000);
         } else {
-            console.log("未找到有效的URL参数");
+            clearInterval(countdownInterval);
+            showError('无效的链接参数，请检查链接是否正确');
         }
 
         // 处理鼠标滚轮事件
-        var firefox = navigator.userAgent.indexOf('Firefox') != -1;
+        const firefox = navigator.userAgent.indexOf('Firefox') != -1;
         
-        function MouseWheel(e, doc) {
-            e.preventDefault && e.preventDefault();
-            e.returnValue = false;
+        function handleMouseWheel(e, doc) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            } else {
+                e.returnValue = false;
+            }
             
-            var up = firefox && e.detail < 0 || e.wheelDelta > 0;
-            var scrollAmount = up ? -50 : 50;
+            const up = firefox && e.detail < 0 || e.wheelDelta > 0;
+            const scrollAmount = up ? -50 : 50;
             
             // 应用滚动
             if (doc.body.scrollTop !== undefined) {
@@ -138,21 +223,26 @@
         
         function bindMouseWheel(ifr) {
             try {
-                var doc = ifr.contentWindow.document;
+                const doc = ifr.contentWindow.document;
                 
                 if (firefox) {
                     doc.addEventListener('DOMMouseScroll', function(e) {
-                        MouseWheel(e, doc);
+                        handleMouseWheel(e, doc);
                     }, false);
                 } else {
                     doc.onmousewheel = function(e) {
-                        MouseWheel(e || ifr.contentWindow.event, doc);
+                        handleMouseWheel(e || ifr.contentWindow.event, doc);
                     };
                 }
             } catch (e) {
                 console.warn('跨域限制，无法绑定鼠标滚轮事件:', e);
             }
         }
+        
+        // 为iframe绑定加载事件
+        document.getElementById('targetFrame').onload = function() {
+            bindMouseWheel(this);
+        };
     </script>
 </body>
 </html>
